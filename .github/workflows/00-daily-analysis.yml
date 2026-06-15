@@ -2,9 +2,18 @@ name: 每日股票分析
 
 on:
   # 定时触发 - 每天北京时间 18:00 (UTC 10:00)
+  # ⚠️ GitHub 对 fork 仓库默认禁用 schedule 触发器
+  # 如需在 fork 上启用定时运行，请使用外部 cron 服务 + repository_dispatch
   schedule:
     - cron: '0 10 * * 1-5'     # 周一到周五，UTC 10:00 = 北京时间 18:00
-  
+
+  # 外部定时服务触发（cron-job.org 等）
+  # 外部服务调用: POST /repos/{owner}/{repo}/dispatches
+  #   event_type: "daily-analysis"
+  #   client_payload: {"mode": "full", "force_run": false}
+  repository_dispatch:
+    types: [daily-analysis]
+
   # 手动触发
   workflow_dispatch:
     inputs:
@@ -385,8 +394,8 @@ jobs:
             echo "✅ LITELLM 配置文件已写入: $LITELLM_CONFIG"
           fi
 
-          # 判断运行模式
-          MODE="${{ github.event.inputs.mode || 'full' }}"
+          # 判断运行模式（兼容 workflow_dispatch / repository_dispatch / schedule）
+          MODE="${{ github.event.inputs.mode || github.event.client_payload.mode || 'full' }}"
           
           echo "=========================================="
           echo "🚀 A股自选股智能分析系统"
@@ -456,7 +465,8 @@ jobs:
           
           # 构建命令行参数
           FORCE_RUN_ARG=""
-          if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+          FORCE_RUN="${{ github.event.inputs.force_run || github.event.client_payload.force_run }}"
+          if [ "$FORCE_RUN" = "true" ]; then
             FORCE_RUN_ARG="--force-run"
             echo "⚡ 已启用强制运行模式（跳过交易日检查）"
           fi
